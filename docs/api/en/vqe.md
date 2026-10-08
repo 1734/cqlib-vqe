@@ -79,11 +79,20 @@ Parameters:
 
 | Value | Behavior |
 | --- | --- |
-| `"auto"` | Recommended default. Honors `construction_mode="bind"` and uses cqlib2's `assign_parameters`; otherwise selects the fused direct-statevector path when it is available |
+| `"auto"` | Recommended default. Prefers the native Pauli direct-statevector path when it and the required interfaces are available, even with `construction_mode="bind"`; otherwise selects the execution path in the order below |
 | `"circuit"` | Forces circuit execution. Use it when a circuit-oriented estimator is required, for example a cloud estimator |
 | `"direct_statevector"` | Use only when both `factory.build_statevector(...)` and `estimator.evaluate_parameters(...)` are available |
 
 Raises `ValueError` for values outside the list above.
+
+`"auto"` checks the following conditions in order:
+
+1. If `factory.native_pauli_rotation_available` is true, the factory implements `build_statevector(...)`, and the estimator implements `evaluate_parameters(...)`, select `"direct_statevector"`.
+2. Otherwise, if `construction_mode="bind"`, select `"circuit"` and bind parameters through cqlib2's `assign_parameters`.
+3. Otherwise, if both methods above are available, select `"direct_statevector"`.
+4. In all other cases, select `"circuit"`.
+
+Set `execution_mode="circuit"` to explicitly use parameter-bound circuits.
 
 > Under COBYLA this package uses a small chemical-scale initial trust-region radius, unless the caller
 > specifies otherwise in `optimizer_options['rhobeg']`.
@@ -234,7 +243,9 @@ DirectStatevectorEstimator(backend: Any = None, n_qubits: int | None = None) -> 
 **Fused parameter-to-energy path** targeting factories that implement `build_statevector`,
 skipping circuit construction.
 
-Under `execution_mode="auto"`, this path is preferred when the factory supports it.
+Under `execution_mode="auto"`, the native Pauli direct-statevector path takes priority when the
+conditions above are met, including for factories with `construction_mode="bind"`. See
+the execution-mode discussion above for the complete fallback order.
 
 ### FastStatevectorEstimator
 
@@ -513,8 +524,11 @@ One QWC group and its corresponding hardware measurement metadata.
 TianyanSubmittedEvaluation(plan: TianyanMeasurementPlan, task: Any | None) -> None
 ```
 
-A submitted measurement plan and its corresponding Tianyan task handle. `task` being `None` means
-the submission did not succeed.
+A measurement plan and its corresponding Tianyan task handle. When `submit()` returns
+`task=None`, `plan.circuits` is empty and no measurement circuits need to be submitted, for example
+when the Hamiltonian contains only a constant term. No task is submitted to Tianyan;
+`collect()` directly returns `plan.constant_energy` as the energy, with empty `groups` and
+`task_ids`. This is a normal evaluation that requires no measurements, not a submission failure.
 
 ### TianyanEnergyResult
 

@@ -118,7 +118,7 @@ Use `ActiveSpaceConfig.full()` to retain the full orbital space.
 
 | Value | When to use |
 | --- | --- |
-| `"auto"` | **Recommended local default.** Uses the fused direct-statevector path when the factory and estimator support it, and otherwise falls back to circuit execution |
+| `"auto"` | **Recommended local default.** Prefers the available native Pauli direct-statevector path, including for factories with `construction_mode="bind"`; see below for the fallback order |
 | `"circuit"` | When a circuit-oriented estimator is required, for example a cloud estimator |
 | `"direct_statevector"` | Only when both `factory.build_statevector(...)` and `estimator.evaluate_parameters(...)` are available |
 
@@ -129,7 +129,15 @@ Use `ActiveSpaceConfig.full()` to retain the full orbital space.
 | `"jit"` | Builds numeric circuits for repeated evaluation |
 | `"bind"` | Keeps a symbolic template. Used when the target execution path benefits from parameter binding |
 
-`execution_mode="auto"` respects `construction_mode="bind"` and uses cqlib2's `assign_parameters`.
+`execution_mode="auto"` first checks the native Pauli direct-statevector path. If
+`factory.native_pauli_rotation_available` is true and both `factory.build_statevector(...)` and
+`estimator.evaluate_parameters(...)` are available, it selects `"direct_statevector"`, even when
+the factory uses `construction_mode="bind"`.
+
+If those conditions are not met, a `"bind"` factory uses circuit execution with parameters bound
+through cqlib2's `assign_parameters`. Other factories still use `"direct_statevector"` if both
+methods above are available, and otherwise use circuit execution. Set
+`execution_mode="circuit"` to explicitly use parameter-bound circuits.
 
 ## Adaptive selected-UCCSD
 

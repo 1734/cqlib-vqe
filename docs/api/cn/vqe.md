@@ -76,11 +76,20 @@ VQESolver(
 
 | 取值 | 行为 |
 | --- | --- |
-| `"auto"` | 推荐默认。尊重 `construction_mode="bind"` 并使用 cqlib2 的 `assign_parameters`；否则在可用时选择融合的直出态矢量路径 |
+| `"auto"` | 推荐默认。原生 Pauli 直出态矢量路径可用且所需接口齐全时，优先使用该路径，即使 `construction_mode="bind"`；否则按下述顺序选择执行路径 |
 | `"circuit"` | 强制线路执行。需要面向线路的估计器时使用，例如云端估计器 |
 | `"direct_statevector"` | 仅在 `factory.build_statevector(...)` 与 `estimator.evaluate_parameters(...)` 都可用时使用 |
 
 不在上述取值内时抛 `ValueError`。
+
+`"auto"` 按以下顺序判定：
+
+1. `factory.native_pauli_rotation_available` 为真，且工厂实现 `build_statevector(...)`、估计器实现 `evaluate_parameters(...)` 时，选择 `"direct_statevector"`。
+2. 否则，若 `construction_mode="bind"`，选择 `"circuit"`，经 cqlib2 的 `assign_parameters` 绑定参数。
+3. 否则，若上述两个方法都可用，选择 `"direct_statevector"`。
+4. 其余情况选择 `"circuit"`。
+
+要明确使用参数绑定线路，应设置 `execution_mode="circuit"`。
 
 > COBYLA 下本包使用一个化学尺度的小初始信赖域半径，除非调用方在
 > `optimizer_options['rhobeg']` 中另行指定。
@@ -229,7 +238,8 @@ DirectStatevectorEstimator(backend: Any = None, n_qubits: int | None = None) -> 
 
 面向实现了 `build_statevector` 的工厂的**参数到能量的融合路径**，省去线路构造。
 
-在 `execution_mode="auto"` 下，工厂支持时优先走这条路径。
+在 `execution_mode="auto"` 下，原生 Pauli 直出态矢量路径满足上述条件时优先使用，
+包括 `construction_mode="bind"` 的工厂；完整回退顺序见上面的执行模式说明。
 
 ### FastStatevectorEstimator
 
@@ -497,7 +507,10 @@ TianyanMeasurementGroup(
 TianyanSubmittedEvaluation(plan: TianyanMeasurementPlan, task: Any | None) -> None
 ```
 
-已提交的测量计划与对应的天衍任务句柄。`task` 为 `None` 表示提交未成功。
+测量计划与对应的天衍任务句柄。`submit()` 返回的 `task=None` 表示 `plan.circuits` 为空，
+无需提交测量线路，例如哈密顿量仅含常数项。此时未向天衍提交任务，`collect()` 直接返回
+以 `plan.constant_energy` 为能量、`groups` 与 `task_ids` 均为空的结果。这是正常的无需测量路径，
+不表示提交失败。
 
 ### TianyanEnergyResult
 

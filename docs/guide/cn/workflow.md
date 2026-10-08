@@ -121,7 +121,7 @@ print(molecule.active_space_report)
 
 | 取值 | 何时用 |
 | --- | --- |
-| `"auto"` | **推荐的本地默认。** 工厂和估计器支持时走融合的直出态矢量路径，否则退回线路执行 |
+| `"auto"` | **推荐的本地默认。** 优先使用可用的原生 Pauli 直出态矢量路径，包括 `construction_mode="bind"` 的工厂；回退顺序见下文 |
 | `"circuit"` | 需要面向线路的估计器时，例如云端估计器 |
 | `"direct_statevector"` | 仅当 `factory.build_statevector(...)` 与 `estimator.evaluate_parameters(...)` 都可用时 |
 
@@ -132,7 +132,14 @@ print(molecule.active_space_report)
 | `"jit"` | 为重复求值构建数值线路 |
 | `"bind"` | 保留符号模板。当目标执行路径从参数绑定中获益时使用 |
 
-`execution_mode="auto"` 会尊重 `construction_mode="bind"`，并使用 cqlib2 的 `assign_parameters`。
+`execution_mode="auto"` 先检查原生 Pauli 直出态矢量路径：
+`factory.native_pauli_rotation_available` 为真，且 `factory.build_statevector(...)` 与
+`estimator.evaluate_parameters(...)` 都可用时，选择 `"direct_statevector"`，即使工厂设置了
+`construction_mode="bind"`。
+
+若上述条件不满足，`"bind"` 工厂走线路执行，经 cqlib2 的 `assign_parameters` 绑定参数；
+其他工厂在上述两个方法都可用时仍选择 `"direct_statevector"`，否则走线路执行。
+要明确使用参数绑定线路，应设置 `execution_mode="circuit"`。
 
 ## 自适应 selected-UCCSD
 
